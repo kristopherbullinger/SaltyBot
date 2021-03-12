@@ -113,7 +113,7 @@ impl EventHandler for Handler {
         if msg.content == "-salt" {
             let response = {
                 let mut rng = thread_rng();
-                format!("```apache\n{}```", self.quotes[rng.gen_range(0, self.quotes.len())])
+                format!("```js\n{}```", self.quotes[rng.gen_range(0, self.quotes.len())])
             };
             if let Err(why) = msg.channel_id.say(&ctx.http, response).await {
                 println!("Error sending message: {:?}", why);
