@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Command {
     Salt,
     Friday,
@@ -70,3 +70,22 @@ pub static QUOTES: &[&str] = &[
     always stay if it's a decent match, win or lose, but resort to either of the previous \
     and I don't mind taking a hit to the rank, it means very little to me.",
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn command_from_str_properly() {
+        let cases = &[
+            ("-salt", Ok(Command::Salt)),
+            ("is it friday", Ok(Command::Friday)),
+            ("IS IT FRIDAY", Ok(Command::Friday)),
+            ("Is It Friday??", Ok(Command::Friday)),
+            ("123  we qerqe", Err(())),
+            ("Nothing", Err(())),
+        ];
+        for case in cases.iter().copied() {
+            assert_eq!(case.0.parse::<Command>(), case.1);
+        }
+    }
+}

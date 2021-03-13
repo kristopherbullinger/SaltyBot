@@ -1,4 +1,4 @@
-use chrono::{Datelike, Local, Weekday};
+use chrono::{offset::Utc, DateTime, Datelike, Duration, Weekday};
 use rand::{thread_rng, Rng};
 use serenity::{
     async_trait,
@@ -7,7 +7,7 @@ use serenity::{
 };
 
 mod command;
-use command::{Command, QUOTES, FRIDAY_GIFS};
+use command::{Command, FRIDAY_GIFS, QUOTES};
 
 struct Handler;
 
@@ -22,19 +22,21 @@ impl EventHandler for Handler {
                         let quote = QUOTES[rng.gen_range(0, QUOTES.len())];
                         format!("```py\n'''\n{}\n'''```", quote)
                     };
-                    //ignore error
                     let _ = msg.channel_id.say(&ctx.http, response).await;
                 }
                 Command::Friday => {
-                    let now = Local::now();
-                    let weekday = now.weekday();
+                    let now: DateTime<Utc> = Utc::now();
+                    //Texas is UTC-6
+                    let texas_utc_offset = Duration::hours(6);
+                    let texas_time = now - texas_utc_offset;
+                    let weekday = texas_time.weekday();
                     let response = match weekday {
                         Weekday::Fri => {
                             let mut rng = thread_rng();
                             let quote = FRIDAY_GIFS[rng.gen_range(0, FRIDAY_GIFS.len())];
                             format!("it's motha fucken FRIDAY!!\n{}", quote)
                         }
-                        _ => "it is not friday".to_string()
+                        _ => "it is not friday".to_string(),
                     };
                     let _ = msg.channel_id.say(&ctx.http, response).await;
                 }
@@ -50,7 +52,7 @@ impl EventHandler for Handler {
 #[tokio::main]
 async fn main() {
     // Configure the client with your Discord bot token in the environment.
-    const TOKEN: &'static str = include_str!("token.txt");
+    const TOKEN: &str = include_str!("token.txt");
 
     // Create a new instance of the Client, logging in as a bot. This will
     // automatically prepend your bot token with "Bot ", which is a requirement
