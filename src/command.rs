@@ -9,8 +9,7 @@ pub enum Command {
 impl FromStr for Command {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s = s.to_lowercase();
-        let s = s.as_str();
+        let s = s.to_ascii_lowercase();
         if s.starts_with("is it friday") {
             return Ok(Command::Friday);
         } else if s == "-salt" {

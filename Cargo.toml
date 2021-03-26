@@ -10,5 +10,6 @@ edition = "2018"
 serenity = { version = "0.9", default-features = false, features = ["client", "gateway", "rustls_backend", "model"] }
 # serenity = "0.9"
 tokio = { version = "0.2", features = ["macros"] }
-rand = "0.7"
+rand = "0.8.3"
 chrono = "0.4.19"
+uwuify = "0.2.1"
