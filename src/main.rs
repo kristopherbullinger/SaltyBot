@@ -5,7 +5,6 @@ use serenity::{
     model::{channel::Message, gateway::Ready},
     prelude::*,
 };
-use uwuifier;
 
 mod command;
 use command::{Command, FRIDAY_GIFS, QUOTES};
@@ -15,8 +14,7 @@ struct Handler;
 #[async_trait]
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
-        match msg.content.parse::<Command>() {
-            Ok(command) => {
+            if let Ok(command) = msg.content.parse::<Command>() {
                 match command {
                     Command::Salt => {
                         let response = {
@@ -38,24 +36,12 @@ impl EventHandler for Handler {
                                 let quote = FRIDAY_GIFS[rng.gen_range(0..FRIDAY_GIFS.len())];
                                 format!("it's motha fucken FRIDAY!!\n{}", quote)
                             }
+                            Weekday::Mon =>	"fuck yeah fucking steak baby yeah monday brunch fuck yeah".to_string(),
                             _ => "it is not friday".to_string(),
                         };
                         let _ = msg.channel_id.say(&ctx.http, response).await;
                     }
                 };
-            }
-            Err(_) => {
-                let i = {
-                    let mut rng = thread_rng();
-                    rng.gen_range(0..200)
-                };
-                if i == 200
-                    || msg.content == "hello i would like to be uwuified please" && !msg.author.bot
-                {
-                    let uwuified = uwuifier::uwuify_str_sse(msg.content.as_str());
-                    let _ = msg.channel_id.say(&ctx.http, uwuified).await;
-                }
-            }
         }
     }
 

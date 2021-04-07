@@ -12,4 +12,3 @@ serenity = { version = "0.9", default-features = false, features = ["client", "g
 tokio = { version = "0.2", features = ["macros"] }
 rand = "0.8.3"
 chrono = "0.4.19"
-uwuify = "0.2.1"
