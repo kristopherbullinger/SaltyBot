@@ -4,11 +4,15 @@ use std::str::FromStr;
 pub enum Command {
     Salt,
     Friday,
+    Silence,
 }
 
 impl FromStr for Command {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.starts_with("SILENCE") {
+            return Ok(Command::Silence);
+        }
         let s = s.to_ascii_lowercase();
         if s.starts_with("is it friday") {
             return Ok(Command::Friday);
@@ -88,6 +92,7 @@ mod tests {
             ("IS IT FRIDAY", Ok(Command::Friday)),
             ("Is It Friday??", Ok(Command::Friday)),
             ("123  we qerqe", Err(())),
+            ("SILENCE", Ok(Command::SILENCE)),
             ("Nothing", Err(())),
         ];
         for case in cases.iter().copied() {
