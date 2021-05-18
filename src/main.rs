@@ -1,3 +1,5 @@
+use std::convert::TryFrom;
+
 use chrono::{offset::Utc, DateTime, Datelike, Duration, Weekday};
 use image::{codecs::jpeg::JpegEncoder, ImageFormat, Rgba};
 use imageproc::drawing::draw_text;
@@ -23,7 +25,8 @@ struct Handler {
 #[async_trait]
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
-        if let Ok(command) = msg.content.parse::<Command>() {
+        let content = msg.content.as_str();
+        if let Ok(command) = Command::try_from(content) {
             match command {
                 Command::Salt => {
                     let response = {
@@ -52,42 +55,36 @@ impl EventHandler for Handler {
                     };
                     let _ = msg.channel_id.say(&ctx.http, response).await;
                 }
-                Command::Silence => {
-                    if let Some(user) = msg.mentions.into_iter().next() {
-                        let mut username = user.name;
-                        username.make_ascii_uppercase();
-                        //read silencecrab.jpg into memory as img file
-                        let mut silencecrab_blank = image::load_from_memory_with_format(
-                            SILENCE_CRAB_BYTES,
-                            ImageFormat::Jpeg,
-                        )
-                        .expect("Failed to read SilenceCrab");
-                        //write msg mention username into the image
-                        let drawn_img = draw_text(
-                            &mut silencecrab_blank,
-                            WHITE,
-                            32,
-                            120,
-                            Scale::uniform(50.0),
-                            &self.font,
-                            username.as_str(),
-                        );
-                        //encode jpg file into in-memory buffer
-                        let mut buf: Vec<u8> = Vec::with_capacity(drawn_img.as_raw().len());
-                        let mut encoder = JpegEncoder::new(&mut buf);
-                        encoder
-                            .encode_image(&drawn_img)
-                            .expect("Failed to encode & save image");
-                        //respond in channel with attachment
-                        if let Err(why) = msg
-                            .channel_id
-                            .send_message(&ctx.http, |msg| {
-                                msg.add_file((buf.as_slice(), "silence.jpg"))
-                            })
-                            .await
-                        {
-                            println!("{}", why);
-                        }
+                Command::Silence(silence) => {
+                    //read silencecrab.jpg into memory as img file
+                    let mut silencecrab_blank =
+                        image::load_from_memory_with_format(SILENCE_CRAB_BYTES, ImageFormat::Jpeg)
+                            .expect("Failed to read SilenceCrab");
+                    //write msg mention username into the image
+                    let drawn_img = draw_text(
+                        &mut silencecrab_blank,
+                        WHITE,
+                        32,
+                        120,
+                        Scale::uniform(50.0),
+                        &self.font,
+                        silence.as_str(),
+                    );
+                    //encode jpg file into in-memory buffer
+                    let mut buf: Vec<u8> = Vec::with_capacity(drawn_img.as_raw().len());
+                    let mut encoder = JpegEncoder::new(&mut buf);
+                    encoder
+                        .encode_image(&drawn_img)
+                        .expect("Failed to encode & save image");
+                    //respond in channel with attachment
+                    if let Err(why) = msg
+                        .channel_id
+                        .send_message(&ctx.http, |msg| {
+                            msg.add_file((buf.as_slice(), "silence.jpg"))
+                        })
+                        .await
+                    {
+                        println!("{}", why);
                     }
                 }
             };

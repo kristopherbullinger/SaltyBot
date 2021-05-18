@@ -1,17 +1,24 @@
-use std::str::FromStr;
+use std::convert::TryFrom;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Command {
     Salt,
     Friday,
-    Silence,
+    Silence(String),
 }
 
-impl FromStr for Command {
-    type Err = ();
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+impl<'a> TryFrom<&'a str> for Command {
+    type Error = ();
+    fn try_from(s: &'a str) -> Result<Self, Self::Error> {
         if s.starts_with("SILENCE") {
-            return Ok(Command::Silence);
+            let (_, rest) = s.split_at("SILENCE".len());
+            let rest = rest.trim();
+            let silence = rest
+                .chars()
+				.map(|c| c.to_ascii_uppercase())
+                .take(20)
+				.collect();
+            return Ok(Command::Silence(silence));
         }
         let s = s.to_ascii_lowercase();
         if s.starts_with("is it friday") {
@@ -92,11 +99,20 @@ mod tests {
             ("IS IT FRIDAY", Ok(Command::Friday)),
             ("Is It Friday??", Ok(Command::Friday)),
             ("123  we qerqe", Err(())),
-            ("SILENCE", Ok(Command::SILENCE)),
+            ("SILENCE", Ok(Command::Silence("".into()))),
+            ("SILENCE peon", Ok(Command::Silence("peon".to_ascii_uppercase()))),
+            (
+                "SILENCE PEON HELLO !@#",
+                Ok(Command::Silence("PEON HELLO !@#".into())),
+            ),
+            (
+                "SILENCE longmessagelongmessagelongmessagelongmessagelongmessagelongmessagelongmessagelongmessage", 
+                Ok(Command::Silence("longmessagelongmessagelongmessagelongmessagelongmessagelongmessagelongmessagelongmessage"[0..20].to_ascii_uppercase())),
+            ),
             ("Nothing", Err(())),
         ];
-        for case in cases.iter().copied() {
-            assert_eq!(case.0.parse::<Command>(), case.1);
+        for case in cases.iter() {
+            assert_eq!(Command::try_from(case.0), case.1);
         }
     }
 }
