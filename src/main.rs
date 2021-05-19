@@ -3,6 +3,7 @@ use std::convert::TryFrom;
 use chrono::{offset::Utc, DateTime, Datelike, Duration, Weekday};
 use image::{codecs::jpeg::JpegEncoder, ImageFormat, Rgba};
 use imageproc::drawing::draw_text;
+use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use rand::{thread_rng, Rng};
 use rusttype::{Font, Scale};
 use serenity::{
@@ -56,6 +57,9 @@ impl EventHandler for Handler {
                     let _ = msg.channel_id.say(&ctx.http, response).await;
                 }
                 Command::Silence(silence) => {
+                    //TODO: give crab message a cooldown to avoid spamming
+                    let _ = msg.channel_id.say(&ctx.http, "Lasers cooling down...");
+                    /*
                     //read silencecrab.jpg into memory as img file
                     let mut silencecrab_blank =
                         image::load_from_memory_with_format(SILENCE_CRAB_BYTES, ImageFormat::Jpeg)
@@ -86,6 +90,12 @@ impl EventHandler for Handler {
                     {
                         println!("{}", why);
                     }
+                    */
+                }
+                Command::Glossary(term) => {
+                    let encoded_term = utf8_percent_encode(term, NON_ALPHANUMERIC).to_string();
+                    let response = format!("https://glossary.infil.net/?t={}", encoded_term);
+                    let _ = msg.channel_id.say(&ctx.http, response).await;
                 }
             };
         }

@@ -1,13 +1,14 @@
 use std::convert::TryFrom;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Command {
+pub enum Command<'a> {
     Salt,
     Friday,
     Silence(String),
+    Glossary(&'a str),
 }
 
-impl<'a> TryFrom<&'a str> for Command {
+impl<'a> TryFrom<&'a str> for Command<'a> {
     type Error = ();
     fn try_from(s: &'a str) -> Result<Self, Self::Error> {
         if s.starts_with("SILENCE") {
@@ -15,16 +16,19 @@ impl<'a> TryFrom<&'a str> for Command {
             let rest = rest.trim();
             let silence = rest
                 .chars()
-				.map(|c| c.to_ascii_uppercase())
+                .map(|c| c.to_ascii_uppercase())
                 .take(20)
-				.collect();
+                .collect();
             return Ok(Command::Silence(silence));
         }
-        let s = s.to_ascii_lowercase();
-        if s.starts_with("is it friday") {
+        let lowered = s.to_ascii_lowercase();
+        if lowered.starts_with("is it friday") {
             return Ok(Command::Friday);
-        } else if s == "-salt" {
+        } else if lowered == "-salt" {
             return Ok(Command::Salt);
+        } else if lowered.starts_with("-glossary") {
+            let (_, rest) = s.split_at("-glossary".len());
+            return Ok(Command::Glossary(rest.trim()));
         }
         Err(())
     }

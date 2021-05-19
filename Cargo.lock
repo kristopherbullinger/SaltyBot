@@ -1244,6 +1244,7 @@ dependencies = [
  "chrono",
  "image",
  "imageproc",
+ "percent-encoding",
  "rand 0.8.3",
  "rusttype",
  "serenity",
