@@ -1,4 +1,6 @@
+use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::sync::{Arc, Mutex};
 
 use chrono::{offset::Utc, DateTime, Datelike, Duration, Weekday};
 use image::{codecs::jpeg::JpegEncoder, ImageFormat, Rgba};
@@ -8,7 +10,7 @@ use rand::{thread_rng, Rng};
 use rusttype::{Font, Scale};
 use serenity::{
     async_trait,
-    model::{channel::Message, gateway::Ready},
+    model::{channel::Message, gateway::Ready, id::GuildId},
     prelude::*,
 };
 
@@ -21,6 +23,7 @@ const WHITE: Rgba<u8> = Rgba([255; 4]);
 
 struct Handler {
     font: rusttype::Font<'static>,
+    crab_timer: Arc<Mutex<HashMap<GuildId, DateTime<Utc>>>>,
 }
 
 #[async_trait]
@@ -56,10 +59,39 @@ impl EventHandler for Handler {
                     };
                     let _ = msg.channel_id.say(&ctx.http, response).await;
                 }
+                //each guild may have one silence crab per 30 seconds
                 Command::Silence(silence) => {
-                    //TODO: give crab message a cooldown to avoid spamming
-                    let _ = msg.channel_id.say(&ctx.http, "Lasers cooling down...");
-                    /*
+                    // lock mutex, then check map for guild id. if found, check the timer and send waiting
+                    // message if last_used less than 30 seconds ago
+                    let gid = match msg.guild_id {
+                        Some(gid) => gid,
+                        None => return,
+                    };
+                    let lasers_ready = match self.crab_timer.lock() {
+                        Ok(mut map) => {
+                            let now = Utc::now();
+                            match map
+                                .get(&gid)
+                                .filter(|&&last_used| (now - last_used).num_seconds() <= 30)
+                            {
+                                //No previous entry, or cooldown expired
+                                None => {
+                                    map.insert(gid, now);
+                                    true
+                                }
+                                //previous entry and still on cooldown
+                                Some(_) => false,
+                            }
+                        }
+                        Err(_) => false,
+                    };
+                    if !lasers_ready {
+                        let _ = msg
+                            .channel_id
+                            .say(&ctx.http, "Lasers cooling down...")
+                            .await;
+                        return;
+                    }
                     //read silencecrab.jpg into memory as img file
                     let mut silencecrab_blank =
                         image::load_from_memory_with_format(SILENCE_CRAB_BYTES, ImageFormat::Jpeg)
@@ -90,7 +122,6 @@ impl EventHandler for Handler {
                     {
                         println!("{}", why);
                     }
-                    */
                 }
                 Command::Glossary(term) => {
                     let encoded_term = utf8_percent_encode(term, NON_ALPHANUMERIC).to_string();
@@ -111,8 +142,10 @@ async fn main() {
     // Configure the client with your Discord bot token in the environment.
     const TOKEN: &str = include_str!("token.txt");
 
+    let crab_timer = Arc::new(Mutex::new(HashMap::default()));
     let handler = Handler {
         font: Font::try_from_bytes(FONTDATA).expect("Failed To Parse Font Data"),
+        crab_timer,
     };
     // Create a new instance of the Client, logging in as a bot. This will
     // automatically prepend your bot token with "Bot ", which is a requirement
