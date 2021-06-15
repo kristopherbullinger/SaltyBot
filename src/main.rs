@@ -52,11 +52,7 @@ impl EventHandler for Handler {
                             let quote = FRIDAY_GIFS[rng.gen_range(0..FRIDAY_GIFS.len())];
                             format!("it's motha fucken FRIDAY!!\n{}", quote)
                         }
-                        Weekday::Mon => {
-                            "fuck yeah fucking steak baby yeah monday brunch fuck yeah".to_string()
-                        }
-                        _ => "it is not friday".to_string(),
-                    };
+                        _ => "it is not friday".to_string(), };
                     let _ = msg.channel_id.say(&ctx.http, response).await;
                 }
                 //each guild may have one silence crab per 30 seconds
