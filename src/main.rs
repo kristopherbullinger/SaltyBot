@@ -15,11 +15,15 @@ use serenity::{
 };
 
 mod command;
+mod utils;
 use command::{Command, FRIDAY_GIFS, QUOTES};
+
 
 static SILENCE_CRAB_BYTES: &[u8] = include_bytes!("../imgs/SILENCE.jpg");
 static FONTDATA: &[u8] = include_bytes!("../fonts/Ubuntu-B.ttf");
 const WHITE: Rgba<u8> = Rgba([255; 4]);
+const KINGCORD_GUILD_ID: u64 = 350242625502052352;
+const KINGCORD_TIMEOUT_ROLE_ID: u64 = 547814221325271072;
 
 struct Handler {
     font: rusttype::Font<'static>,
@@ -30,6 +34,13 @@ struct Handler {
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
         let content = msg.content.as_str();
+		//if message is profane and sent in kingcord, silence user
+		if msg.guild_id.map(|g| g.0) == Some(KINGCORD_GUILD_ID) && utils::is_profane(content) {
+			let author_id = msg.author.id.0;
+			let http = ctx.http.clone();
+			let _ = http.add_member_role(KINGCORD_GUILD_ID, author_id, KINGCORD_TIMEOUT_ROLE_ID).await;
+			return;	
+		}
         if let Ok(command) = Command::try_from(content) {
             match command {
                 Command::Salt => {
