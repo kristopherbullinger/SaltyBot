@@ -18,7 +18,6 @@ mod command;
 mod utils;
 use command::{Command, FRIDAY_GIFS, QUOTES};
 
-
 static SILENCE_CRAB_BYTES: &[u8] = include_bytes!("../imgs/SILENCE.jpg");
 static FONTDATA: &[u8] = include_bytes!("../fonts/Ubuntu-B.ttf");
 const WHITE: Rgba<u8> = Rgba([255; 4]);
@@ -34,13 +33,15 @@ struct Handler {
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
         let content = msg.content.as_str();
-		//if message is profane and sent in kingcord, silence user
-		if msg.guild_id.map(|g| g.0) == Some(KINGCORD_GUILD_ID) && utils::is_profane(content) {
-			let author_id = msg.author.id.0;
-			let http = ctx.http.clone();
-			let _ = http.add_member_role(KINGCORD_GUILD_ID, author_id, KINGCORD_TIMEOUT_ROLE_ID).await;
-			return;	
-		}
+        //if message is profane and sent in kingcord, silence user
+        if msg.guild_id.map(|g| g.0) == Some(KINGCORD_GUILD_ID) && utils::is_profane(content) {
+            let author_id = msg.author.id.0;
+            let http = ctx.http.clone();
+            let _ = http
+                .add_member_role(KINGCORD_GUILD_ID, author_id, KINGCORD_TIMEOUT_ROLE_ID)
+                .await;
+            return;
+        }
         if let Ok(command) = Command::try_from(content) {
             match command {
                 Command::Salt => {
@@ -63,7 +64,8 @@ impl EventHandler for Handler {
                             let quote = FRIDAY_GIFS[rng.gen_range(0..FRIDAY_GIFS.len())];
                             format!("it's motha fucken FRIDAY!!\n{}", quote)
                         }
-                        _ => "it is not friday".to_string(), };
+                        _ => "it is not friday".to_string(),
+                    };
                     let _ = msg.channel_id.say(&ctx.http, response).await;
                 }
                 //each guild may have one silence crab per 30 seconds

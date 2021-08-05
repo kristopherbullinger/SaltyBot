@@ -11,7 +11,7 @@ pub enum Command<'a> {
 impl<'a> TryFrom<&'a str> for Command<'a> {
     type Error = ();
     fn try_from(s: &'a str) -> Result<Self, Self::Error> {
-		//attempt to parse SILENCE
+        //attempt to parse SILENCE
         if s.starts_with("SILENCE") {
             let (_, rest) = s.split_at("SILENCE".len());
             let rest = rest.trim();
@@ -22,17 +22,17 @@ impl<'a> TryFrom<&'a str> for Command<'a> {
                 .collect();
             return Ok(Command::Silence(silence));
         }
-		//attempt to parse Friday
+        //attempt to parse Friday
         let lowered = s.to_ascii_lowercase();
         if lowered.starts_with("is it friday") {
             return Ok(Command::Friday);
         }
-		//attempt to parse Salt
-		if lowered == "-salt" {
+        //attempt to parse Salt
+        if lowered == "-salt" {
             return Ok(Command::Salt);
         }
-		//attempt to parse Glossary
-		if lowered.starts_with("-glossary") {
+        //attempt to parse Glossary
+        if lowered.starts_with("-glossary") {
             let (_, rest) = s.split_at("-glossary".len());
             return Ok(Command::Glossary(rest.trim()));
         }
@@ -119,7 +119,6 @@ mod tests {
                 "SILENCE longmessagelongmessagelongmessagelongmessagelongmessagelongmessagelongmessagelongmessage", 
                 Ok(Command::Silence("longmessagelongmessagelongmessagelongmessagelongmessagelongmessagelongmessagelongmessage"[0..20].to_ascii_uppercase())),
             ),
-			("nigga", Ok(BadWord)),
             ("Nothing", Err(())),
         ];
         for case in cases.iter() {
