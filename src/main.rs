@@ -18,16 +18,20 @@ mod command;
 mod utils;
 use command::{Command, FRIDAY_GIFS, QUOTES};
 
-static SILENCE_CRAB_BYTES: &[u8] = include_bytes!("../imgs/SILENCE.jpg");
-static FONTDATA: &[u8] = include_bytes!("../fonts/Ubuntu-B.ttf");
-const WHITE: Rgba<u8> = Rgba([255; 4]);
+static _SILENCE_CRAB_BYTES: &[u8] = include_bytes!("../imgs/SILENCE.jpg");
+static _FONTDATA: &[u8] = include_bytes!("../fonts/Ubuntu-B.ttf");
+const _WHITE: Rgba<u8> = Rgba([255; 4]);
 const KINGCORD_GUILD_ID: u64 = 350242625502052352;
 const KINGCORD_TIMEOUT_ROLE_ID: u64 = 547814221325271072;
+static RANDOM_FROG_URL: &str = "https://source.unsplash.com/450x400/?frog";
 
+/*
 struct Handler {
-    font: rusttype::Font<'static>,
+    //font: rusttype::Font<'static>,
     crab_timer: Arc<Mutex<HashMap<GuildId, DateTime<Utc>>>>,
 }
+*/
+struct Handler;
 
 #[async_trait]
 impl EventHandler for Handler {
@@ -69,7 +73,23 @@ impl EventHandler for Handler {
                     let _ = msg.channel_id.say(&ctx.http, response).await;
                 }
                 //each guild may have one silence crab per 30 seconds
-                Command::Silence(silence) => {
+                Command::Silence(_silence) => {
+                    let image = match reqwest::get(RANDOM_FROG_URL).await {
+                        Ok(r) => r,
+                        Err(_) => return,
+                    };
+                    let frog_bytes = match image.bytes().await {
+                        Ok(b) => b,
+                        Err(_) => return,
+                    };
+                    let _ = msg.channel_id
+                        .send_message(ctx.http, |msg| {
+                            msg.content("Laser Crab has entered a period of peaceful retirement. Please enjoy this picture of a frog As-salamu alaykum.");
+                            msg.add_file((frog_bytes.as_ref(), "frog.jpg"));
+                            msg
+                        })
+                        .await;
+                    /*
                     // lock mutex, then check map for guild id. if found, check the timer and send waiting
                     // message if last_used less than 30 seconds ago
                     let gid = match msg.guild_id {
@@ -131,6 +151,7 @@ impl EventHandler for Handler {
                     {
                         println!("{}", why);
                     }
+                    */
                 }
                 Command::Glossary(term) => {
                     let encoded_term = utf8_percent_encode(term, NON_ALPHANUMERIC).to_string();
@@ -151,16 +172,18 @@ async fn main() {
     // Configure the client with your Discord bot token in the environment.
     const TOKEN: &str = include_str!("token.txt");
 
+    /*
     let crab_timer = Arc::new(Mutex::new(HashMap::default()));
     let handler = Handler {
         font: Font::try_from_bytes(FONTDATA).expect("Failed To Parse Font Data"),
         crab_timer,
     };
+    */
     // Create a new instance of the Client, logging in as a bot. This will
     // automatically prepend your bot token with "Bot ", which is a requirement
     // by Discord for bot users.
     let mut client = Client::builder(TOKEN)
-        .event_handler(handler)
+        .event_handler(Handler)
         .await
         .expect("Err creating client");
 
