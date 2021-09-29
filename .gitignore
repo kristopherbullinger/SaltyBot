@@ -2,3 +2,4 @@
 token.txt
 .cargo
 deploy.sh
+build.sh

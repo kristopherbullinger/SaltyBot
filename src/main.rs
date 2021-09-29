@@ -1,16 +1,14 @@
-use std::collections::HashMap;
 use std::convert::TryFrom;
-use std::sync::{Arc, Mutex};
 
 use chrono::{offset::Utc, DateTime, Datelike, Duration, Weekday};
-use image::{codecs::jpeg::JpegEncoder, ImageFormat, Rgba};
-use imageproc::drawing::draw_text;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use rand::{thread_rng, Rng};
-use rusttype::{Font, Scale};
 use serenity::{
     async_trait,
-    model::{channel::Message, gateway::Ready, id::GuildId},
+    model::{
+        channel::{Message, Reaction, ReactionType},
+        gateway::Ready,
+    },
     prelude::*,
 };
 
@@ -18,19 +16,15 @@ mod command;
 mod utils;
 use command::{Command, FRIDAY_GIFS, QUOTES};
 
-static _SILENCE_CRAB_BYTES: &[u8] = include_bytes!("../imgs/SILENCE.jpg");
-static _FONTDATA: &[u8] = include_bytes!("../fonts/Ubuntu-B.ttf");
-const _WHITE: Rgba<u8> = Rgba([255; 4]);
 const KINGCORD_GUILD_ID: u64 = 350242625502052352;
 const KINGCORD_TIMEOUT_ROLE_ID: u64 = 547814221325271072;
+static CONSUL_ROLE_IDS: &'static [u64] = &[
+    350362647989846026, //admin
+    432017127810269204, //moderator
+    885971978052325376, //council
+];
 static RANDOM_FROG_URL: &str = "https://source.unsplash.com/450x400/?frog";
 
-/*
-struct Handler {
-    //font: rusttype::Font<'static>,
-    crab_timer: Arc<Mutex<HashMap<GuildId, DateTime<Utc>>>>,
-}
-*/
 struct Handler;
 
 #[async_trait]
@@ -72,7 +66,6 @@ impl EventHandler for Handler {
                     };
                     let _ = msg.channel_id.say(&ctx.http, response).await;
                 }
-                //each guild may have one silence crab per 30 seconds
                 Command::Silence(_silence) => {
                     let image = match reqwest::get(RANDOM_FROG_URL).await {
                         Ok(r) => r,
@@ -89,69 +82,6 @@ impl EventHandler for Handler {
                             msg
                         })
                         .await;
-                    /*
-                    // lock mutex, then check map for guild id. if found, check the timer and send waiting
-                    // message if last_used less than 30 seconds ago
-                    let gid = match msg.guild_id {
-                        Some(gid) => gid,
-                        None => return,
-                    };
-                    let lasers_ready = match self.crab_timer.lock() {
-                        Ok(mut map) => {
-                            let now = Utc::now();
-                            match map
-                                .get(&gid)
-                                .filter(|&&last_used| (now - last_used).num_seconds() <= 30)
-                            {
-                                //No previous entry, or cooldown expired
-                                None => {
-                                    map.insert(gid, now);
-                                    true
-                                }
-                                //previous entry and still on cooldown
-                                Some(_) => false,
-                            }
-                        }
-                        Err(_) => false,
-                    };
-                    if !lasers_ready {
-                        let _ = msg
-                            .channel_id
-                            .say(&ctx.http, "Lasers cooling down...")
-                            .await;
-                        return;
-                    }
-                    //read silencecrab.jpg into memory as img file
-                    let mut silencecrab_blank =
-                        image::load_from_memory_with_format(SILENCE_CRAB_BYTES, ImageFormat::Jpeg)
-                            .expect("Failed to read SilenceCrab");
-                    //write msg mention username into the image
-                    let drawn_img = draw_text(
-                        &mut silencecrab_blank,
-                        WHITE,
-                        32,
-                        120,
-                        Scale::uniform(50.0),
-                        &self.font,
-                        silence.as_str(),
-                    );
-                    //encode jpg file into in-memory buffer
-                    let mut buf: Vec<u8> = Vec::with_capacity(drawn_img.as_raw().len());
-                    let mut encoder = JpegEncoder::new(&mut buf);
-                    encoder
-                        .encode_image(&drawn_img)
-                        .expect("Failed to encode & save image");
-                    //respond in channel with attachment
-                    if let Err(why) = msg
-                        .channel_id
-                        .send_message(&ctx.http, |msg| {
-                            msg.add_file((buf.as_slice(), "silence.jpg"))
-                        })
-                        .await
-                    {
-                        println!("{}", why);
-                    }
-                    */
                 }
                 Command::Glossary(term) => {
                     let encoded_term = utf8_percent_encode(term, NON_ALPHANUMERIC).to_string();
@@ -165,10 +95,86 @@ impl EventHandler for Handler {
     async fn ready(&self, _: Context, ready: Ready) {
         println!("{} is connected!", ready.user.name);
     }
+
+    async fn reaction_add(&self, ctx: Context, reaction: Reaction) {
+        let guild = match reaction.guild_id {
+            Some(g) if *g.as_u64() == KINGCORD_GUILD_ID => g,
+            _ => {
+                return;
+            }
+        };
+        if !reaction.emoji.unicode_eq("👎") {
+            return;
+        }
+        if !reaction
+            .member
+            .as_ref()
+            .and_then(|mem| {
+                mem.roles
+                    .iter()
+                    .find(|role| CONSUL_ROLE_IDS.contains(role.as_u64()))
+            })
+            .is_some()
+        {
+            return;
+        }
+        let message = match reaction.message(&ctx.http).await {
+            Ok(msg) => msg,
+            Err(e) => {
+                log::debug!("Failed to get message: {:?}", e);
+                return;
+            }
+        };
+        let downvote_count = message
+            .reactions
+            .iter()
+            .find(|reac| reac.reaction_type.unicode_eq("👎"))
+            .map(|reac| reac.count)
+            .unwrap_or_default();
+
+        if downvote_count < 3 {
+            return;
+        }
+        
+        let mut member = match guild.member(&ctx.http, message.author.id).await {
+            Ok(m) => m,
+            Err(e) => {
+                log::debug!("Failed to fetch message author: {:?}", e);
+                return;
+            }
+        };
+
+        match member.add_role(&ctx.http, KINGCORD_TIMEOUT_ROLE_ID).await {
+            Ok(_) => {
+                //generate message to indicate timeout action
+                let reacter_id = match reaction.user_id {
+                    Some(s) => format!("{}", s),
+                    None => "Someone".to_string(),
+                };
+                let author_id = *message.author.id.as_u64();
+                let notif = format!("<@{}> has sent <@{}> to the Shadow Realm", reacter_id, author_id);
+                if let Err(e) = reaction.channel_id.say(&ctx.http, notif).await {
+                    log::debug!("Failed to send message to channel: {:?}", e);
+                    return;
+                }
+                //remove all thumbsdowns from message
+                if let Err(e) = message.delete_reaction_emoji(&ctx.http, ReactionType::Unicode("👎".into())).await {
+                    log::debug!("Failed to delete thumbsdowns: {:?}", e);
+                    return;
+                }
+            },
+            Err(e) => {
+                log::debug!("Failed to add timeout role to message author: {:?}", e);
+                return;
+            }
+        }
+    }
 }
 
 #[tokio::main]
 async fn main() {
+    dotenv::dotenv().ok();
+    env_logger::init();
     // Configure the client with your Discord bot token in the environment.
     const TOKEN: &str = include_str!("token.txt");
 
