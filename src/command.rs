@@ -59,7 +59,6 @@ pub static QUOTES: &[&str] = &[
     well respected in the competitive FPS community and I guarantee you won't last a year.",
     "he threw me 3 times in a row.\nthat merits a rage quit.",
     "Fighting games are stupid, unbalanced, not at all fun, and should have died in the 90s",
-    "minus is unsafe",
     "Can't you just play without using exploits that the developers clearly \
     didn't thought about when making the rules?",
     "you only know how to grab and use the same move ur not good bud",
@@ -78,8 +77,6 @@ pub static QUOTES: &[&str] = &[
     "And i say it again all high tier players are assholes",
     "But telling me to go into the lab\nIs not helping me learn\nthat is being an asshole and \
     not wanting to help me",
-    "1: why do you get launched\n2: Because the grab misses\n1: why does it miss\n2: because \
-    It's never close enough\n1: why aren't you close enough\n2: I dunno",
     "I AM SO DONE WITH THIS GARBAGE ASS GAME\nAND FUCK YOU TOO",
     "I hate playin the Ditto, because it just comes down to better decision making",
     "1: i told you to block on wakeup and you said it \"doesn't work\"\n1: I also told \
@@ -89,6 +86,8 @@ pub static QUOTES: &[&str] = &[
     spamming, cowarding, a Paul player or just too boring a player to deal with. I will \
     always stay if it's a decent match, win or lose, but resort to either of the previous \
     and I don't mind taking a hit to the rank, it means very little to me.",
+    "To the Chip main on US east coast level 5 who kept fucking spamming the fucking dust attack:\
+        you're why gaming is dying",
 ];
 
 #[cfg(test)]
