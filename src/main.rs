@@ -18,6 +18,7 @@ use command::{Command, FRIDAY_GIFS, QUOTES};
 
 const KINGCORD_GUILD_ID: u64 = 350242625502052352;
 const KINGCORD_TIMEOUT_ROLE_ID: u64 = 547814221325271072;
+const SELF_USER_ID: u64 = 751611106107064451;
 static CONSUL_ROLE_IDS: &'static [u64] = &[
     350362647989846026, //admin
     432017127810269204, //moderator
@@ -70,6 +71,10 @@ impl EventHandler for Handler {
                 let _ = msg.channel_id.say(&ctx.http, response).await;
             }
             Command::Frog => {
+                let from_self = *msg.author.id.as_u64() == SELF_USER_ID;
+                if from_self {
+                    return;
+                }
                 let image = match reqwest::get(RANDOM_FROG_URL).await {
                     Ok(r) => r,
                     Err(_) => return,
