@@ -4,23 +4,16 @@ use std::convert::TryFrom;
 pub enum Command<'a> {
     Salt,
     Friday,
-    Silence(String),
+    Frog,
     Glossary(&'a str),
 }
 
 impl<'a> TryFrom<&'a str> for Command<'a> {
     type Error = ();
     fn try_from(s: &'a str) -> Result<Self, Self::Error> {
-        //attempt to parse SILENCE
-        if s.starts_with("SILENCE") {
-            let (_, rest) = s.split_at("SILENCE".len());
-            let rest = rest.trim();
-            let silence = rest
-                .chars()
-                .map(|c| c.to_ascii_uppercase())
-                .take(20)
-                .collect();
-            return Ok(Command::Silence(silence));
+        //attempt to parse FROG
+        if s == "froge" {
+            return Ok(Command::Frog);
         }
         //attempt to parse Friday
         let lowered = s.to_ascii_lowercase();
@@ -109,16 +102,8 @@ mod tests {
             ("IS IT FRIDAY", Ok(Command::Friday)),
             ("Is It Friday??", Ok(Command::Friday)),
             ("123  we qerqe", Err(())),
-            ("SILENCE", Ok(Command::Silence("".into()))),
-            ("SILENCE peon", Ok(Command::Silence("peon".to_ascii_uppercase()))),
-            (
-                "SILENCE PEON HELLO !@#",
-                Ok(Command::Silence("PEON HELLO !@#".into())),
-            ),
-            (
-                "SILENCE longmessagelongmessagelongmessagelongmessagelongmessagelongmessagelongmessagelongmessage", 
-                Ok(Command::Silence("longmessagelongmessagelongmessagelongmessagelongmessagelongmessagelongmessagelongmessage"[0..20].to_ascii_uppercase())),
-            ),
+            ("froge", Ok(Command::Frog)),
+            ("-glossary", Ok(Command::Glossary(""))),
             ("Nothing", Err(())),
         ];
         for case in cases.iter() {

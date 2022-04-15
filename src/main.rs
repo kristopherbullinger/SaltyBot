@@ -40,55 +40,58 @@ impl EventHandler for Handler {
                 .await;
             return;
         }
-        if let Ok(command) = Command::try_from(content) {
-            match command {
-                Command::Salt => {
-                    let response = {
+        let command = match Command::try_from(content) {
+            Ok(c) => c,
+            _ => return,
+        };
+        match command {
+            Command::Salt => {
+                let response = {
+                    let mut rng = thread_rng();
+                    let quote = QUOTES[rng.gen_range(0..QUOTES.len())];
+                    format!("```py\n'''\n{}\n'''```", quote)
+                };
+                let _ = msg.channel_id.say(&ctx.http, response).await;
+            }
+            Command::Friday => {
+                let now: DateTime<Utc> = Utc::now();
+                //approximately Texas
+                let texas_utc_offset = Duration::hours(5);
+                let texas_time = now - texas_utc_offset;
+                let weekday = texas_time.weekday();
+                let response = match weekday {
+                    Weekday::Fri => {
                         let mut rng = thread_rng();
-                        let quote = QUOTES[rng.gen_range(0..QUOTES.len())];
-                        format!("```py\n'''\n{}\n'''```", quote)
-                    };
-                    let _ = msg.channel_id.say(&ctx.http, response).await;
-                }
-                Command::Friday => {
-                    let now: DateTime<Utc> = Utc::now();
-                    //Texas is UTC-6
-                    let texas_utc_offset = Duration::hours(6);
-                    let texas_time = now - texas_utc_offset;
-                    let weekday = texas_time.weekday();
-                    let response = match weekday {
-                        Weekday::Fri => {
-                            let mut rng = thread_rng();
-                            let quote = FRIDAY_GIFS[rng.gen_range(0..FRIDAY_GIFS.len())];
-                            format!("it's motha fucken FRIDAY!!\n{}", quote)
-                        }
-                        _ => "it is not friday".to_string(),
-                    };
-                    let _ = msg.channel_id.say(&ctx.http, response).await;
-                }
-                Command::Silence(_silence) => {
-                    let image = match reqwest::get(RANDOM_FROG_URL).await {
-                        Ok(r) => r,
-                        Err(_) => return,
-                    };
-                    let frog_bytes = match image.bytes().await {
-                        Ok(b) => b,
-                        Err(_) => return,
-                    };
-                    let _ = msg.channel_id
-                        .send_message(ctx.http, |msg| {
-                            msg.content("Laser Crab has entered a period of peaceful retirement. Please enjoy this picture of a frog As-salamu alaykum.");
-                            msg.add_file((frog_bytes.as_ref(), "frog.jpg"));
-                            msg
-                        })
-                        .await;
-                }
-                Command::Glossary(term) => {
-                    let encoded_term = utf8_percent_encode(term, NON_ALPHANUMERIC).to_string();
-                    let response = format!("https://glossary.infil.net/?t={}", encoded_term);
-                    let _ = msg.channel_id.say(&ctx.http, response).await;
-                }
-            };
+                        let quote = FRIDAY_GIFS[rng.gen_range(0..FRIDAY_GIFS.len())];
+                        format!("it's motha fucken FRIDAY!!\n{}", quote)
+                    }
+                    _ => "it is not friday".to_string(),
+                };
+                let _ = msg.channel_id.say(&ctx.http, response).await;
+            }
+            Command::Frog => {
+                let image = match reqwest::get(RANDOM_FROG_URL).await {
+                    Ok(r) => r,
+                    Err(_) => return,
+                };
+                let frog_bytes = match image.bytes().await {
+                    Ok(b) => b,
+                    Err(_) => return,
+                };
+                let _ = msg
+                    .channel_id
+                    .send_message(ctx.http, |msg| {
+                        msg.content("froge");
+                        msg.add_file((frog_bytes.as_ref(), "frog.jpg"));
+                        msg
+                    })
+                    .await;
+            }
+            Command::Glossary(term) => {
+                let encoded_term = utf8_percent_encode(term, NON_ALPHANUMERIC).to_string();
+                let response = format!("https://glossary.infil.net/?t={}", encoded_term);
+                let _ = msg.channel_id.say(&ctx.http, response).await;
+            }
         }
     }
 
@@ -135,7 +138,7 @@ impl EventHandler for Handler {
         if downvote_count < 3 {
             return;
         }
-        
+
         let mut member = match guild.member(&ctx.http, message.author.id).await {
             Ok(m) => m,
             Err(e) => {
@@ -152,17 +155,23 @@ impl EventHandler for Handler {
                     None => "Someone".to_string(),
                 };
                 let author_id = *message.author.id.as_u64();
-                let notif = format!("<@{}> has sent <@{}> to the Shadow Realm", reacter_id, author_id);
+                let notif = format!(
+                    "<@{}> has sent <@{}> to the Shadow Realm",
+                    reacter_id, author_id
+                );
                 if let Err(e) = reaction.channel_id.say(&ctx.http, notif).await {
                     log::debug!("Failed to send message to channel: {:?}", e);
                     return;
                 }
                 //remove all thumbsdowns from message
-                if let Err(e) = message.delete_reaction_emoji(&ctx.http, ReactionType::Unicode("👎".into())).await {
+                if let Err(e) = message
+                    .delete_reaction_emoji(&ctx.http, ReactionType::Unicode("👎".into()))
+                    .await
+                {
                     log::debug!("Failed to delete thumbsdowns: {:?}", e);
                     return;
                 }
-            },
+            }
             Err(e) => {
                 log::debug!("Failed to add timeout role to message author: {:?}", e);
                 return;
