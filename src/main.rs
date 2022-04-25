@@ -19,6 +19,7 @@ use command::{Command, FRIDAY_GIFS, QUOTES};
 const KINGCORD_GUILD_ID: u64 = 350242625502052352;
 const KINGCORD_TIMEOUT_ROLE_ID: u64 = 547814221325271072;
 const SELF_USER_ID: u64 = 751611106107064451;
+const SPEEZ_USER_ID: u64 = 442321800416854037;
 static CONSUL_ROLE_IDS: &'static [u64] = &[
     350362647989846026, //admin
     432017127810269204, //moderator
@@ -65,6 +66,10 @@ impl EventHandler for Handler {
                         let mut rng = thread_rng();
                         let quote = FRIDAY_GIFS[rng.gen_range(0..FRIDAY_GIFS.len())];
                         format!("it's motha fucken FRIDAY!!\n{}", quote)
+                    }
+                    Weekday::Mon if msg.author.id.0 == SPEEZ_USER_ID => {
+                        "https://pbs.twimg.com/media/FAoSsRdVEAQwJ9Y?format=png&name=900x900"
+                            .to_string()
                     }
                     _ => "it is not friday".to_string(),
                 };
