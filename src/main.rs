@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::convert::TryFrom;
 
 use chrono::{offset::Utc, DateTime, Datelike, Duration, Weekday};
@@ -65,15 +66,14 @@ impl EventHandler for Handler {
                     Weekday::Fri => {
                         let mut rng = thread_rng();
                         let quote = FRIDAY_GIFS[rng.gen_range(0..FRIDAY_GIFS.len())];
-                        format!("it's motha fucken FRIDAY!!\n{}", quote)
+                        Cow::Owned(format!("it's motha fucken FRIDAY!!\n{}", quote))
                     }
-                    Weekday::Mon if msg.author.id.0 == SPEEZ_USER_ID => {
-                        "https://pbs.twimg.com/media/FAoSsRdVEAQwJ9Y?format=png&name=900x900"
-                            .to_string()
-                    }
-                    _ => "it is not friday".to_string(),
+                    Weekday::Mon if msg.author.id.0 == SPEEZ_USER_ID => Cow::Borrowed(
+                        "https://pbs.twimg.com/media/FAoSsRdVEAQwJ9Y?format=png&name=900x900",
+                    ),
+                    _ => Cow::Borrowed("it is not friday"),
                 };
-                let _ = msg.channel_id.say(&ctx.http, response).await;
+                let _ = msg.channel_id.say(&ctx.http, response.as_ref()).await;
             }
             Command::Frog => {
                 let from_self = *msg.author.id.as_u64() == SELF_USER_ID;
