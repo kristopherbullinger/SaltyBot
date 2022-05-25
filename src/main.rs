@@ -80,15 +80,15 @@ impl EventHandler for Handler {
                 if from_self {
                     return;
                 }
-                let image = match reqwest::get(RANDOM_FROG_URL).await {
+                let image_response = match reqwest::get(RANDOM_FROG_URL).await {
                     Ok(r) => r,
                     Err(_) => return,
                 };
-                if image.status().as_u16() >= 300 {
+                if image_response.status().as_u16() >= 300 {
                     let _ = msg.channel_id.say(&ctx.http, "🐸").await;
                     return;
                 }
-                let frog_bytes = match image.bytes().await {
+                let frog_bytes = match image_response.bytes().await {
                     Ok(b) => b,
                     Err(_) => return,
                 };
