@@ -84,6 +84,10 @@ impl EventHandler for Handler {
                     Ok(r) => r,
                     Err(_) => return,
                 };
+                if image.status().as_u16() >= 300 {
+                    let _ = msg.channel_id.say(&ctx.http, "🐸").await;
+                    return;
+                }
                 let frog_bytes = match image.bytes().await {
                     Ok(b) => b,
                     Err(_) => return,
