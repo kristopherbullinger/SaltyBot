@@ -2,7 +2,6 @@ use std::borrow::Cow;
 use std::convert::TryFrom;
 
 use chrono::{offset::Utc, DateTime, Datelike, Duration, Weekday};
-use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use rand::{thread_rng, Rng};
 use serenity::{
     async_trait,
@@ -14,6 +13,7 @@ use serenity::{
 };
 
 mod command;
+mod glossary;
 mod utils;
 use command::{Command, FRIDAY_GIFS, QUOTES};
 
@@ -102,9 +102,13 @@ impl EventHandler for Handler {
                     .await;
             }
             Command::Glossary(term) => {
-                let encoded_term = utf8_percent_encode(term, NON_ALPHANUMERIC).to_string();
-                let response = format!("https://glossary.infil.net/?t={}", encoded_term);
-                let _ = msg.channel_id.say(&ctx.http, response).await;
+                let term = term.to_ascii_lowercase();
+                let glossary_entry = glossary::get(term);
+                let response = match glossary_entry {
+                    Some(entry) => Cow::Owned(format!("```\n{}```", entry.def.as_str())),
+                    None => Cow::Borrowed("```\nTerm Not Found\n```"),
+                };
+                let _ = msg.channel_id.say(&ctx.http, response.as_ref()).await;
             }
         }
     }
@@ -195,32 +199,20 @@ impl EventHandler for Handler {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     dotenv::dotenv().ok();
     env_logger::init();
-    // Configure the client with your Discord bot token in the environment.
+    glossary::init()?;
+
     const TOKEN: &str = include_str!("token.txt");
 
-    /*
-    let crab_timer = Arc::new(Mutex::new(HashMap::default()));
-    let handler = Handler {
-        font: Font::try_from_bytes(FONTDATA).expect("Failed To Parse Font Data"),
-        crab_timer,
-    };
-    */
-    // Create a new instance of the Client, logging in as a bot. This will
-    // automatically prepend your bot token with "Bot ", which is a requirement
-    // by Discord for bot users.
     let mut client = Client::builder(TOKEN)
         .event_handler(Handler)
         .await
         .expect("Err creating client");
 
-    // Finally, start a single shard, and start listening to events.
-    //
-    // Shards will automatically attempt to reconnect, and will perform
-    // exponential backoff until it reconnects.
     if let Err(why) = client.start().await {
         println!("Client error: {:?}", why);
     }
+    Ok(())
 }
