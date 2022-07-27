@@ -7,7 +7,8 @@ use serenity::{
     async_trait,
     model::{
         channel::{Message, Reaction, ReactionType},
-        gateway::Ready,
+        gateway::{GatewayIntents, Ready},
+        timestamp::Timestamp,
     },
     prelude::*,
 };
@@ -18,7 +19,6 @@ mod utils;
 use command::{Command, FRIDAY_GIFS, QUOTES};
 
 const KINGCORD_GUILD_ID: u64 = 350242625502052352;
-const KINGCORD_TIMEOUT_ROLE_ID: u64 = 547814221325271072;
 const SELF_USER_ID: u64 = 751611106107064451;
 const SPEEZ_USER_ID: u64 = 442321800416854037;
 static CONSUL_ROLE_IDS: &'static [u64] = &[
@@ -29,6 +29,7 @@ static CONSUL_ROLE_IDS: &'static [u64] = &[
 static RANDOM_FROG_URL: &str = "https://source.unsplash.com/450x400/?frog";
 
 struct Handler;
+const ONE_DAY: i64 = 24 * 60 * 60;
 
 #[async_trait]
 impl EventHandler for Handler {
@@ -36,12 +37,15 @@ impl EventHandler for Handler {
         let content = msg.content.as_str();
         //if message is profane and sent in kingcord, silence user
         if msg.guild_id.map(|g| g.0) == Some(KINGCORD_GUILD_ID) && utils::is_profane(content) {
-            let author_id = msg.author.id.0;
-            let http = ctx.http.clone();
-            let _ = http
-                .add_member_role(KINGCORD_GUILD_ID, author_id, KINGCORD_TIMEOUT_ROLE_ID)
+            let mut member = match msg.member(&ctx.http).await {
+                Ok(m) => m,
+                Err(_) => return,
+            };
+            let until = Timestamp::from_unix_timestamp(Timestamp::now().unix_timestamp() + ONE_DAY)
+                .unwrap();
+            let _ = member
+                .disable_communication_until_datetime(&ctx.http, until)
                 .await;
-            return;
         }
         let command = match Command::try_from(content) {
             Ok(c) => c,
@@ -165,7 +169,13 @@ impl EventHandler for Handler {
             }
         };
 
-        match member.add_role(&ctx.http, KINGCORD_TIMEOUT_ROLE_ID).await {
+        // match member.add_role(&ctx.http, KINGCORD_TIMEOUT_ROLE_ID).await {
+        let until =
+            Timestamp::from_unix_timestamp(Timestamp::now().unix_timestamp() + ONE_DAY).unwrap();
+        match member
+            .disable_communication_until_datetime(&ctx.http, until)
+            .await
+        {
             Ok(_) => {
                 //generate message to indicate timeout action
                 let reacter_id = match reaction.user_id {
@@ -206,7 +216,10 @@ async fn main() -> anyhow::Result<()> {
 
     const TOKEN: &str = include_str!("token.txt");
 
-    let mut client = Client::builder(TOKEN)
+    let intents = GatewayIntents::GUILD_MESSAGES
+        | GatewayIntents::GUILD_MESSAGE_REACTIONS
+        | GatewayIntents::MESSAGE_CONTENT;
+    let mut client = Client::builder(TOKEN, intents)
         .event_handler(Handler)
         .await
         .expect("Err creating client");
