@@ -16,7 +16,7 @@ use serenity::{
 mod command;
 mod glossary;
 mod utils;
-use command::{Command, FRIDAY_GIFS, QUOTES};
+use command::{Command, QUOTES};
 
 const KINGCORD_GUILD_ID: u64 = 350242625502052352;
 const SELF_USER_ID: u64 = 751611106107064451;
@@ -27,6 +27,9 @@ static CONSUL_ROLE_IDS: &'static [u64] = &[
     885971978052325376, //council
 ];
 static RANDOM_FROG_URL: &str = "https://source.unsplash.com/450x400/?frog";
+static NECO_ARC_DOUGIE: &str = "https://cdn.discordapp.com/attachments/350242625502052353/1010292204201332778/EynKWlUtroS3hAf4.mp4";
+static NECO_ARC_SMOKING: &str =
+    "https://pbs.twimg.com/media/FAoSsRdVEAQwJ9Y?format=png&name=900x900";
 
 struct Handler;
 const ONE_DAY: i64 = 24 * 60 * 60;
@@ -67,17 +70,11 @@ impl EventHandler for Handler {
                 let texas_time = now - texas_utc_offset;
                 let weekday = texas_time.weekday();
                 let response = match weekday {
-                    Weekday::Fri => {
-                        let mut rng = thread_rng();
-                        let quote = FRIDAY_GIFS[rng.gen_range(0..FRIDAY_GIFS.len())];
-                        Cow::Owned(format!("it's motha fucken FRIDAY!!\n{}", quote))
-                    }
-                    Weekday::Mon if msg.author.id.0 == SPEEZ_USER_ID => Cow::Borrowed(
-                        "https://pbs.twimg.com/media/FAoSsRdVEAQwJ9Y?format=png&name=900x900",
-                    ),
-                    _ => Cow::Borrowed("it is not friday"),
+                    Weekday::Fri => NECO_ARC_DOUGIE,
+                    Weekday::Mon if msg.author.id.0 == SPEEZ_USER_ID => NECO_ARC_SMOKING,
+                    _ => "it is not friday",
                 };
-                let _ = msg.channel_id.say(&ctx.http, response.as_ref()).await;
+                let _ = msg.channel_id.say(&ctx.http, response).await;
             }
             Command::Frog => {
                 let from_self = *msg.author.id.as_u64() == SELF_USER_ID;

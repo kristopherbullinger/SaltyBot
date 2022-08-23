@@ -33,19 +33,6 @@ impl<'a> TryFrom<&'a str> for Command<'a> {
     }
 }
 
-pub static FRIDAY_GIFS: &[&str] = &[
-    "https://tenor.com/view/tekken-king-slap-fight-gif-14352072",
-    "https://tenor.com/view/faust-guilty-gear-ky-kiske-gif-19883342",
-    "https://tenor.com/view/tekken-king-slam-perfect-gif-13368205",
-	"https://tenor.com/view/chun-li-teabag-street-fighter-gif-20484164",
-	"https://tenor.com/view/ryu-fortnite-street-fighter-ryu-hoshi-gif-20536074",
-	"https://tenor.com/view/marvel-vs-capcom-infinite-gif-18183288",
-	"https://tenor.com/view/tsukihime-melty-blood-len-dance-gif-20126517",
-	"https://tenor.com/view/tsukihime-smile-dance-happy-gif-13931305",
-	"https://tenor.com/view/wb-mortal-kombat-original-scorpion-gif-19648762",
-	"https://tenor.com/view/luong-king-of-fighters-neck-snap-kof-king-of-fighters-luong-gif-16339518",
-];
-
 pub static QUOTES: &[&str] = &[
     "Complaining is saying \"chain grabs are fucking stupid\" which they aren't. \
         They're just incredibly braindead",
