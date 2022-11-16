@@ -28,8 +28,7 @@ static CONSUL_ROLE_IDS: &'static [u64] = &[
 ];
 static RANDOM_FROG_URL: &str = "https://source.unsplash.com/450x400/?frog";
 static NECO_ARC_DOUGIE: &str = "https://cdn.discordapp.com/attachments/350242625502052353/1010292204201332778/EynKWlUtroS3hAf4.mp4";
-static NECO_ARC_SMOKING: &str =
-    "https://pbs.twimg.com/media/FAoSsRdVEAQwJ9Y?format=png&name=900x900";
+static NECO_ARC_SMOKING: &str = "https://pbs.twimg.com/media/FE6QLYLXEAg-ccT.jpg";
 
 struct Handler;
 const ONE_DAY: i64 = 24 * 60 * 60;
@@ -71,7 +70,7 @@ impl EventHandler for Handler {
                 let weekday = texas_time.weekday();
                 let response = match weekday {
                     Weekday::Fri => NECO_ARC_DOUGIE,
-                    Weekday::Mon if msg.author.id.0 == SPEEZ_USER_ID => NECO_ARC_SMOKING,
+                    Weekday::Sat if msg.author.id.0 == SPEEZ_USER_ID => NECO_ARC_SMOKING,
                     _ => "it is not friday",
                 };
                 let _ = msg.channel_id.say(&ctx.http, response).await;
