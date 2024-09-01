@@ -1,6 +1,3 @@
-use std::borrow::Cow;
-use std::convert::TryFrom;
-
 use chrono::{offset::Utc, DateTime, Datelike, Duration, Weekday};
 use rand::{thread_rng, Rng};
 use serenity::{
@@ -8,10 +5,16 @@ use serenity::{
     model::{
         channel::{Message, Reaction, ReactionType},
         gateway::{GatewayIntents, Ready},
+        id::ChannelId,
         timestamp::Timestamp,
     },
     prelude::*,
 };
+use sqlx::SqlitePool;
+use std::borrow::Cow;
+use std::convert::TryFrom;
+use std::fmt::Write;
+use std::str::FromStr;
 
 mod command;
 mod glossary;
@@ -26,12 +29,13 @@ static CONSUL_ROLE_IDS: &'static [u64] = &[
     432017127810269204, //moderator
     885971978052325376, //council
 ];
-static RANDOM_FROG_URL: &str = "https://source.unsplash.com/450x400/?frog";
 static NECO_ARC_DOUGIE: &str = "https://cdn.discordapp.com/attachments/350242625502052353/1010292204201332778/EynKWlUtroS3hAf4.mp4";
 static NECO_ARC_SMOKING: &str = "https://pbs.twimg.com/media/FE6QLYLXEAg-ccT.jpg";
 static NECO_ARC_SEATBELT: &str = "https://cdn.discordapp.com/attachments/350242625502052353/1090717976765931530/20230329_104015.png";
 
-struct Handler;
+struct Handler {
+    pool: SqlitePool,
+}
 const ONE_DAY: i64 = 24 * 60 * 60;
 
 #[async_trait]
@@ -39,7 +43,7 @@ impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
         let content = msg.content.as_str();
         //if message is profane and sent in kingcord, silence user
-        if msg.guild_id.map(|g| g.0) == Some(KINGCORD_GUILD_ID) && utils::is_profane(content) {
+        if msg.guild_id.map(|g| g.get()) == Some(KINGCORD_GUILD_ID) && utils::is_profane(content) {
             let mut member = match msg.member(&ctx.http).await {
                 Ok(m) => m,
                 Err(_) => return,
@@ -55,6 +59,9 @@ impl EventHandler for Handler {
             _ => return,
         };
         match command {
+            Command::ListSelfAssignRoles => {
+                let _ = list_all_self_assign_roles(&ctx, &self.pool, msg.channel_id).await;
+            }
             Command::Salt => {
                 let response = {
                     let mut rng = thread_rng();
@@ -71,36 +78,10 @@ impl EventHandler for Handler {
                 let weekday = texas_time.weekday();
                 let response = match weekday {
                     Weekday::Fri => NECO_ARC_DOUGIE,
-                    Weekday::Sat if msg.author.id.0 == SPEEZ_USER_ID => NECO_ARC_SMOKING,
+                    Weekday::Sat if msg.author.id.get() == SPEEZ_USER_ID => NECO_ARC_SMOKING,
                     _ => NECO_ARC_SEATBELT,
                 };
                 let _ = msg.channel_id.say(&ctx.http, response).await;
-            }
-            Command::Frog => {
-                let from_self = *msg.author.id.as_u64() == SELF_USER_ID;
-                if from_self {
-                    return;
-                }
-                let image_response = match reqwest::get(RANDOM_FROG_URL).await {
-                    Ok(r) => r,
-                    Err(_) => return,
-                };
-                if image_response.status().as_u16() >= 300 {
-                    let _ = msg.channel_id.say(&ctx.http, "🐸").await;
-                    return;
-                }
-                let frog_bytes = match image_response.bytes().await {
-                    Ok(b) => b,
-                    Err(_) => return,
-                };
-                let _ = msg
-                    .channel_id
-                    .send_message(ctx.http, |msg| {
-                        msg.content("froge");
-                        msg.add_file((frog_bytes.as_ref(), "frog.jpg"));
-                        msg
-                    })
-                    .await;
             }
             Command::Glossary(term) => {
                 let term = term.to_ascii_lowercase();
@@ -120,8 +101,20 @@ impl EventHandler for Handler {
 
     async fn reaction_add(&self, ctx: Context, reaction: Reaction) {
         let guild = match reaction.guild_id {
-            Some(g) if *g.as_u64() == KINGCORD_GUILD_ID => g,
+            Some(g) if g.get() == KINGCORD_GUILD_ID => g,
             _ => {
+                return;
+            }
+        };
+        let message = match reaction.message(&ctx.http).await {
+            Ok(msg) => msg,
+            Err(e) => {
+                log::debug!("Failed to get message: {:?}", e);
+                return;
+            }
+        };
+        if message.author.id.get() == SELF_USER_ID {
+            if let Err(_) = handle_role_reaction(&ctx, self.pool.clone(), &reaction).await {
                 return;
             }
         };
@@ -134,19 +127,13 @@ impl EventHandler for Handler {
             .and_then(|mem| {
                 mem.roles
                     .iter()
-                    .find(|role| CONSUL_ROLE_IDS.contains(role.as_u64()))
+                    .copied()
+                    .find(|role| CONSUL_ROLE_IDS.contains(&role.get()))
             })
             .is_some()
         {
             return;
         }
-        let message = match reaction.message(&ctx.http).await {
-            Ok(msg) => msg,
-            Err(e) => {
-                log::debug!("Failed to get message: {:?}", e);
-                return;
-            }
-        };
         let downvote_count = message
             .reactions
             .iter()
@@ -179,7 +166,7 @@ impl EventHandler for Handler {
                     Some(s) => format!("{}", s),
                     None => "Someone".to_string(),
                 };
-                let author_id = *message.author.id.as_u64();
+                let author_id = message.author.id.get();
                 let notif = format!(
                     "<@{}> has sent <@{}> to the Shadow Realm",
                     reacter_id, author_id
@@ -205,6 +192,56 @@ impl EventHandler for Handler {
     }
 }
 
+async fn list_all_self_assign_roles(
+    ctx: &Context,
+    db: &SqlitePool,
+    channel_id: ChannelId,
+) -> anyhow::Result<()> {
+    let roles: Vec<Role> =
+        sqlx::query_as("SELECT id, emoji, role_id, role_name FROM role_reactions LIMIT 50")
+            .fetch_all(db)
+            .await?;
+    let mut msg = String::new();
+    for role in roles {
+        let _ = write!(msg, "{} | {}\n", role.emoji, role.role_name);
+    }
+    channel_id.say(ctx, msg).await?;
+    Ok(())
+}
+
+async fn handle_role_reaction(
+    ctx: &Context,
+    db: SqlitePool,
+    reaction: &Reaction,
+) -> anyhow::Result<()> {
+    let emoji = match reaction.emoji {
+        ReactionType::Unicode(ref e) => e,
+        _ => return Ok(()),
+    };
+    let Some(ref member) = reaction.member else {
+        return Ok(());
+    };
+    let Some(role): Option<Role> =
+        sqlx::query_as("SELECT id, emoji, role_id FROM role_reactions WHERE emoji = $1 LIMIT 1")
+            .bind(emoji)
+            .fetch_optional(&db)
+            .await?
+    else {
+        return Ok(());
+    };
+    let _ = member.add_role(ctx, role.role_id).await?;
+
+    Ok(())
+}
+
+#[derive(sqlx::FromRow)]
+struct Role {
+    id: u64,
+    emoji: String,
+    role_id: u64,
+    role_name: String,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv::dotenv().ok();
@@ -213,11 +250,18 @@ async fn main() -> anyhow::Result<()> {
 
     const TOKEN: &str = include_str!("token.txt");
 
+    let opts = sqlx::sqlite::SqliteConnectOptions::from_str("sqlite://data.db")?
+        .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
+        .create_if_missing(true);
+
+    let pool = SqlitePool::connect_with(opts).await?;
+    sqlx::query(include_str!("./up.sql")).execute(&pool).await?;
+
     let intents = GatewayIntents::GUILD_MESSAGES
         | GatewayIntents::GUILD_MESSAGE_REACTIONS
         | GatewayIntents::MESSAGE_CONTENT;
     let mut client = Client::builder(TOKEN, intents)
-        .event_handler(Handler)
+        .event_handler(Handler { pool })
         .await
         .expect("Err creating client");
 

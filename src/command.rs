@@ -4,21 +4,20 @@ use std::convert::TryFrom;
 pub enum Command<'a> {
     Salt,
     Friday,
-    Frog,
+    ListSelfAssignRoles,
     Glossary(&'a str),
 }
 
 impl<'a> TryFrom<&'a str> for Command<'a> {
     type Error = ();
     fn try_from(s: &'a str) -> Result<Self, Self::Error> {
-        //attempt to parse FROG
-        if s == "froge" {
-            return Ok(Command::Frog);
-        }
         //attempt to parse Friday
         let lowered = s.to_ascii_lowercase();
         if lowered.starts_with("is it friday") {
             return Ok(Command::Friday);
+        }
+        if lowered == "-lsar" {
+            return Ok(Command::ListSelfAssignRoles);
         }
         //attempt to parse Salt
         if lowered == "-salt" {
