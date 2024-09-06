@@ -1,5 +1,4 @@
 use chrono::{offset::Utc, DateTime, Datelike, Duration, Weekday};
-use rand::{thread_rng, Rng};
 use serenity::{
     async_trait,
     model::{
@@ -19,14 +18,16 @@ use std::str::FromStr;
 mod command;
 mod glossary;
 mod utils;
-use command::{Command, QUOTES};
+use command::{AddSelfAssignRole, Command};
 
 const KINGCORD_GUILD_ID: u64 = 350242625502052352;
 const SELF_USER_ID: u64 = 751611106107064451;
 const SPEEZ_USER_ID: u64 = 442321800416854037;
+const MOD_ROLE_ID: u64 = 432017127810269204;
+const ADMIN_ROLE_ID: u64 = 350362647989846026;
 static CONSUL_ROLE_IDS: &'static [u64] = &[
-    350362647989846026, //admin
-    432017127810269204, //moderator
+    ADMIN_ROLE_ID,
+    MOD_ROLE_ID,
     885971978052325376, //council
 ];
 static NECO_ARC_DOUGIE: &str = "https://cdn.discordapp.com/attachments/350242625502052353/1010292204201332778/EynKWlUtroS3hAf4.mp4";
@@ -59,16 +60,51 @@ impl EventHandler for Handler {
             _ => return,
         };
         match command {
+            Command::RemoveSelfAssignRole(role_name) => {
+                let _ = sqlx::query("DELETE FROM role_reactions WHERE role_name = ?1")
+                    .bind(role_name)
+                    .execute(&self.pool)
+                    .await;
+            }
+            Command::AddSelfAssignRole(asar) => {
+                if let Ok(member) = msg.member(&ctx.http).await {
+                    if member
+                        .roles
+                        .iter()
+                        .any(|role| role.get() == ADMIN_ROLE_ID || role.get() == MOD_ROLE_ID)
+                    {
+                        let Some(guild) = msg.guild_id else {
+                            return;
+                        };
+                        let guild_roles = match guild.roles(&ctx.http).await {
+                            Ok(r) => r,
+                            Err(e) => {
+                                log::error!("failed to fetch roles: {:?}", e);
+                                return;
+                            }
+                        };
+                        let Some(role) = guild_roles
+                            .values()
+                            .find(|role| role.name == asar.role_name)
+                        else {
+                            let _ = msg.channel_id.say(&ctx, "role not found");
+                            return;
+                        };
+                        if let Err(e) = add_self_assign_role(
+                            &self.pool,
+                            asar.emoji,
+                            asar.role_name,
+                            role.id.get() as i64,
+                        )
+                        .await
+                        {
+                            let _ = msg.channel_id.say(&ctx, format!("{:?}", e));
+                        }
+                    }
+                }
+            }
             Command::ListSelfAssignRoles => {
                 let _ = list_all_self_assign_roles(&ctx, &self.pool, msg.channel_id).await;
-            }
-            Command::Salt => {
-                let response = {
-                    let mut rng = thread_rng();
-                    let quote = QUOTES[rng.gen_range(0..QUOTES.len())];
-                    format!("```py\n'''\n{}\n'''```", quote)
-                };
-                let _ = msg.channel_id.say(&ctx.http, response).await;
             }
             Command::Friday => {
                 let now: DateTime<Utc> = Utc::now();
@@ -98,6 +134,8 @@ impl EventHandler for Handler {
     async fn ready(&self, _: Context, ready: Ready) {
         println!("{} is connected!", ready.user.name);
     }
+
+    async fn reaction_remove(&self, ctx: Context, reaction: Reaction) {}
 
     async fn reaction_add(&self, ctx: Context, reaction: Reaction) {
         let guild = match reaction.guild_id {
@@ -209,6 +247,31 @@ async fn list_all_self_assign_roles(
     Ok(())
 }
 
+async fn add_self_assign_role(
+    db: &SqlitePool,
+    emoji: &str,
+    role_name: &str,
+    role_id: i64,
+) -> anyhow::Result<()> {
+    sqlx::query("INSERT INTO role_reactions (emoji, role_id, role_name) VALUES ($1, $2, $3)")
+        .bind(emoji)
+        .bind(role_id)
+        .bind(role_name)
+        .execute(db)
+        .await?;
+    Ok(())
+}
+
+// async fn remove_self_assign_role(db: &SqlitePool, name: &str) -> anyhow::Result<()> {
+//     sqlx::query("DELETE INTO role_reactions (emoji, role_id, role_name) VALUES ($1, $2, $3)")
+//         .bind(asar.emoji)
+//         .bind(asar.role_id)
+//         .bind(asar.role_name)
+//         .execute(db)
+//         .await?;
+//     Ok(())
+// }
+
 async fn handle_role_reaction(
     ctx: &Context,
     db: SqlitePool,
@@ -221,15 +284,21 @@ async fn handle_role_reaction(
     let Some(ref member) = reaction.member else {
         return Ok(());
     };
-    let Some(role): Option<Role> =
-        sqlx::query_as("SELECT id, emoji, role_id FROM role_reactions WHERE emoji = $1 LIMIT 1")
-            .bind(emoji)
-            .fetch_optional(&db)
-            .await?
-    else {
-        return Ok(());
+    let role_id = match sqlx::query_as::<_, (u64,)>(
+        "SELECT role_id FROM role_reactions WHERE emoji = $1 LIMIT 1",
+    )
+    .bind(emoji)
+    .fetch_optional(&db)
+    .await
+    {
+        Ok(Some(r)) => r.0,
+        Ok(None) => return Ok(()),
+        Err(e) => {
+            log::error!("failed to fetch role info: {:?}", e);
+            return Err(e.into());
+        }
     };
-    let _ = member.add_role(ctx, role.role_id).await?;
+    let _ = member.add_role(ctx, role_id).await?;
 
     Ok(())
 }
