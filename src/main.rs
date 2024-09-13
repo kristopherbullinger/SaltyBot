@@ -32,6 +32,8 @@ static CONSUL_ROLE_IDS: &'static [u64] = &[
 ];
 static NECO_ARC_DOUGIE: &str = "https://cdn.discordapp.com/attachments/350242625502052353/1010292204201332778/EynKWlUtroS3hAf4.mp4";
 static NECO_ARC_SMOKING: &str = "https://pbs.twimg.com/media/FE6QLYLXEAg-ccT.jpg";
+static NECO_ARC_BLOODY_AXE: &str =
+    "https://i.pinimg.com/564x/22/40/08/224008b647e5f9ac8a158df7063b130d.jpg";
 static NECO_ARC_SEATBELT: &str = "https://cdn.discordapp.com/attachments/350242625502052353/1090717976765931530/20230329_104015.png";
 
 struct Handler {
@@ -113,7 +115,13 @@ impl EventHandler for Handler {
                 let texas_time = now - texas_utc_offset;
                 let weekday = texas_time.weekday();
                 let response = match weekday {
-                    Weekday::Fri => NECO_ARC_DOUGIE,
+                    Weekday::Fri => {
+                        if now.day() == 13 {
+                            NECO_ARC_BLOODY_AXE
+                        } else {
+                            NECO_ARC_DOUGIE
+                        }
+                    }
                     Weekday::Sat if msg.author.id.get() == SPEEZ_USER_ID => NECO_ARC_SMOKING,
                     _ => NECO_ARC_SEATBELT,
                 };
