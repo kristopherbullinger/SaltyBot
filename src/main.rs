@@ -25,6 +25,7 @@ const SELF_USER_ID: u64 = 751611106107064451;
 const SPEEZ_USER_ID: u64 = 442321800416854037;
 const MOD_ROLE_ID: u64 = 432017127810269204;
 const ADMIN_ROLE_ID: u64 = 350362647989846026;
+const KINGCORD_INSTABAN_CHANNEL_ID: u64 = 1428557360518926418;
 static CONSUL_ROLE_IDS: &'static [u64] = &[
     ADMIN_ROLE_ID,
     MOD_ROLE_ID,
@@ -44,6 +45,33 @@ const ONE_DAY: i64 = 24 * 60 * 60;
 #[async_trait]
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
+        // ban user if they post in the bot trap channel
+        if msg.channel_id.get() == KINGCORD_INSTABAN_CHANNEL_ID
+            && msg.author.id.get() != SELF_USER_ID
+        {
+            let member = match msg.member(&ctx.http).await {
+                Ok(mem) => mem,
+                Err(e) => {
+                    return;
+                }
+            };
+            let id = member.user.id.get();
+            match member
+                .ban_with_reason(&ctx.http, 1, "posted in instaban channel")
+                .await
+            {
+                Ok(_) => {
+                    let _ = msg
+                        .channel_id
+                        .say(&ctx.http, format!("ELIMINATED SCUM <@{}>", id))
+                        .await;
+                }
+                Err(e) => {
+                    log::error!("failed to ban user <@{}>: {:?}", id, e);
+                    return;
+                }
+            }
+        }
         let content = msg.content.as_str();
         //if message is profane and sent in kingcord, silence user
         if msg.guild_id.map(|g| g.get()) == Some(KINGCORD_GUILD_ID) && utils::is_profane(content) {
