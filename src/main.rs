@@ -4,16 +4,12 @@ use serenity::{
     model::{
         channel::{Message, Reaction, ReactionType},
         gateway::{GatewayIntents, Ready},
-        id::ChannelId,
         timestamp::Timestamp,
     },
     prelude::*,
 };
-use sqlx::SqlitePool;
 use std::borrow::Cow;
 use std::convert::TryFrom;
-use std::fmt::Write;
-use std::str::FromStr;
 
 mod command;
 mod glossary;
@@ -37,9 +33,7 @@ static NECO_ARC_BLOODY_AXE: &str =
     "https://i.pinimg.com/564x/22/40/08/224008b647e5f9ac8a158df7063b130d.jpg";
 static NECO_ARC_SEATBELT: &str = "https://cdn.discordapp.com/attachments/350242625502052353/1090717976765931530/20230329_104015.png";
 
-struct Handler {
-    pool: SqlitePool,
-}
+struct Handler;
 const ONE_DAY: i64 = 24 * 60 * 60;
 
 #[async_trait]
@@ -91,52 +85,6 @@ impl EventHandler for Handler {
             _ => return,
         };
         match command {
-            Command::RemoveSelfAssignRole(role_name) => {
-                let _ = sqlx::query("DELETE FROM role_reactions WHERE role_name = ?1")
-                    .bind(role_name)
-                    .execute(&self.pool)
-                    .await;
-            }
-            Command::AddSelfAssignRole(asar) => {
-                if let Ok(member) = msg.member(&ctx.http).await {
-                    if member
-                        .roles
-                        .iter()
-                        .any(|role| role.get() == ADMIN_ROLE_ID || role.get() == MOD_ROLE_ID)
-                    {
-                        let Some(guild) = msg.guild_id else {
-                            return;
-                        };
-                        let guild_roles = match guild.roles(&ctx.http).await {
-                            Ok(r) => r,
-                            Err(e) => {
-                                log::error!("failed to fetch roles: {:?}", e);
-                                return;
-                            }
-                        };
-                        let Some(role) = guild_roles
-                            .values()
-                            .find(|role| role.name == asar.role_name)
-                        else {
-                            let _ = msg.channel_id.say(&ctx, "role not found");
-                            return;
-                        };
-                        if let Err(e) = add_self_assign_role(
-                            &self.pool,
-                            asar.emoji,
-                            asar.role_name,
-                            role.id.get() as i64,
-                        )
-                        .await
-                        {
-                            let _ = msg.channel_id.say(&ctx, format!("{:?}", e));
-                        }
-                    }
-                }
-            }
-            Command::ListSelfAssignRoles => {
-                let _ = list_all_self_assign_roles(&ctx, &self.pool, msg.channel_id).await;
-            }
             Command::Friday => {
                 let now: DateTime<Utc> = Utc::now();
                 //approximately Texas
@@ -188,11 +136,6 @@ impl EventHandler for Handler {
                 return;
             }
         };
-        if message.author.id.get() == SELF_USER_ID {
-            if let Err(_) = handle_role_reaction(&ctx, self.pool.clone(), &reaction).await {
-                return;
-            }
-        };
         if !reaction.emoji.unicode_eq("👎") {
             return;
         }
@@ -228,7 +171,6 @@ impl EventHandler for Handler {
             }
         };
 
-        // match member.add_role(&ctx.http, KINGCORD_TIMEOUT_ROLE_ID).await {
         let until =
             Timestamp::from_unix_timestamp(Timestamp::now().unix_timestamp() + ONE_DAY).unwrap();
         match member
@@ -267,87 +209,6 @@ impl EventHandler for Handler {
     }
 }
 
-async fn list_all_self_assign_roles(
-    ctx: &Context,
-    db: &SqlitePool,
-    channel_id: ChannelId,
-) -> anyhow::Result<()> {
-    let roles: Vec<Role> =
-        sqlx::query_as("SELECT id, emoji, role_id, role_name FROM role_reactions LIMIT 50")
-            .fetch_all(db)
-            .await?;
-    let mut msg = String::new();
-    for role in roles {
-        let _ = write!(msg, "{} | {}\n", role.emoji, role.role_name);
-    }
-    channel_id.say(ctx, msg).await?;
-    Ok(())
-}
-
-async fn add_self_assign_role(
-    db: &SqlitePool,
-    emoji: &str,
-    role_name: &str,
-    role_id: i64,
-) -> anyhow::Result<()> {
-    sqlx::query("INSERT INTO role_reactions (emoji, role_id, role_name) VALUES ($1, $2, $3)")
-        .bind(emoji)
-        .bind(role_id)
-        .bind(role_name)
-        .execute(db)
-        .await?;
-    Ok(())
-}
-
-// async fn remove_self_assign_role(db: &SqlitePool, name: &str) -> anyhow::Result<()> {
-//     sqlx::query("DELETE INTO role_reactions (emoji, role_id, role_name) VALUES ($1, $2, $3)")
-//         .bind(asar.emoji)
-//         .bind(asar.role_id)
-//         .bind(asar.role_name)
-//         .execute(db)
-//         .await?;
-//     Ok(())
-// }
-
-async fn handle_role_reaction(
-    ctx: &Context,
-    db: SqlitePool,
-    reaction: &Reaction,
-) -> anyhow::Result<()> {
-    let emoji = match reaction.emoji {
-        ReactionType::Unicode(ref e) => e,
-        _ => return Ok(()),
-    };
-    let Some(ref member) = reaction.member else {
-        return Ok(());
-    };
-    let role_id = match sqlx::query_as::<_, (u64,)>(
-        "SELECT role_id FROM role_reactions WHERE emoji = $1 LIMIT 1",
-    )
-    .bind(emoji)
-    .fetch_optional(&db)
-    .await
-    {
-        Ok(Some(r)) => r.0,
-        Ok(None) => return Ok(()),
-        Err(e) => {
-            log::error!("failed to fetch role info: {:?}", e);
-            return Err(e.into());
-        }
-    };
-    let _ = member.add_role(ctx, role_id).await?;
-
-    Ok(())
-}
-
-#[derive(sqlx::FromRow)]
-struct Role {
-    // id: u64,
-    emoji: String,
-    // role_id: u64,
-    role_name: String,
-}
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv::dotenv().ok();
@@ -355,19 +216,11 @@ async fn main() -> anyhow::Result<()> {
     glossary::init()?;
 
     const TOKEN: &str = include_str!("token.txt");
-
-    let opts = sqlx::sqlite::SqliteConnectOptions::from_str("sqlite://data.db")?
-        .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
-        .create_if_missing(true);
-
-    let pool = SqlitePool::connect_with(opts).await?;
-    sqlx::query(include_str!("./up.sql")).execute(&pool).await?;
-
     let intents = GatewayIntents::GUILD_MESSAGES
         | GatewayIntents::GUILD_MESSAGE_REACTIONS
         | GatewayIntents::MESSAGE_CONTENT;
     let mut client = Client::builder(TOKEN, intents)
-        .event_handler(Handler { pool })
+        .event_handler(Handler)
         .await
         .expect("Err creating client");
 
