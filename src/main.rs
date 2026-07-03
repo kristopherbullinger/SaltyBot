@@ -18,7 +18,7 @@ use std::str::FromStr;
 mod command;
 mod glossary;
 mod utils;
-use command::{AddSelfAssignRole, Command};
+use command::Command;
 
 const KINGCORD_GUILD_ID: u64 = 350242625502052352;
 const SELF_USER_ID: u64 = 751611106107064451;
@@ -51,7 +51,7 @@ impl EventHandler for Handler {
         {
             let member = match msg.member(&ctx.http).await {
                 Ok(mem) => mem,
-                Err(e) => {
+                Err(_) => {
                     return;
                 }
             };
@@ -61,9 +61,10 @@ impl EventHandler for Handler {
                 .await
             {
                 Ok(_) => {
+                    let name = member.user.name;
                     let _ = msg
                         .channel_id
-                        .say(&ctx.http, format!("ELIMINATED SCUM <@{}>", id))
+                        .say(&ctx.http, format!("ELIMINATED SCUM {}", name))
                         .await;
                 }
                 Err(e) => {
@@ -171,7 +172,7 @@ impl EventHandler for Handler {
         println!("{} is connected!", ready.user.name);
     }
 
-    async fn reaction_remove(&self, ctx: Context, reaction: Reaction) {}
+    async fn reaction_remove(&self, _ctx: Context, _reaction: Reaction) {}
 
     async fn reaction_add(&self, ctx: Context, reaction: Reaction) {
         let guild = match reaction.guild_id {
@@ -341,9 +342,9 @@ async fn handle_role_reaction(
 
 #[derive(sqlx::FromRow)]
 struct Role {
-    id: u64,
+    // id: u64,
     emoji: String,
-    role_id: u64,
+    // role_id: u64,
     role_name: String,
 }
 

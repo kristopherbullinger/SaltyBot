@@ -41,7 +41,7 @@ impl<'a> TryFrom<&'a str> for Command<'a> {
     }
 }
 
-fn parse_asar(inp: &str) -> Option<AddSelfAssignRole> {
+fn parse_asar<'a>(inp: &'a str) -> Option<AddSelfAssignRole<'a>> {
     let inp = inp.strip_prefix("-asar ")?;
     let emoji = inp.split_whitespace().next_back()?.trim();
     let role_name = inp[0..inp.len() - emoji.len()].trim();
